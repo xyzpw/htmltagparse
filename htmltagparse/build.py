@@ -1,4 +1,4 @@
-from .parser import NewPage
+from .parser import HtmlPage
 import requests
 import time
 from .exceptions import *
@@ -8,17 +8,16 @@ __all__ = [
 ]
 
 def fromUri(uri: str, timeout=5, headers={}) -> object:
+    """Builds an html page from a URI."""
     priorEpoch = time.time()
     try:
         resp = requests.get(uri, timeout=timeout, headers=headers)
-    except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
-        htmlError = RequestTimeoutException(RequestTimeoutException.__doc__)
-        htmlError.uri = str(uri)
-        htmlError.timeout = float(timeout)
-        return htmlError
+    except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout):
+        raise HtmlHttpError("did not receive server data within timeout duration")
     tagTimeout = timeout - (time.time() - priorEpoch)
     pageHtml = resp.text
-    page = NewPage(pageHtml, timeout=tagTimeout)
+    page = HtmlPage(pageHtml, timeout=tagTimeout)
     page.uri = resp.url
-    page.status_code = resp.status_code
+    page.response = (resp.status_code, resp.reason)
+    page.elapsed = time.time() - priorEpoch
     return page

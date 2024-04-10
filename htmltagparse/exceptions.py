@@ -2,12 +2,16 @@
 import time
 
 __all__ = [
-    "TagTimeoutException",
-    "RequestTimeoutException",
+    "HtmlHttpError",
+    "HtmlTagError",
 ]
 
-class TagTimeoutException(TimeoutError):
-    """Timed out while parsing tags"""
+class HtmlHttpError(Exception):
+    """Exception for htmltagparse."""
+    def __init__(self, *args):
+        pass
 
-class RequestTimeoutException(TimeoutError):
-    """GET request took too long"""
+class HtmlTagError(Exception):
+    """Timeout expired."""
+    def __init__(self, *args):
+        pass

@@ -2,6 +2,25 @@ __all__ = [
     "tagsWithSrc",
     "all_tags",
     "tagsWithHref",
+    "voidTags",
+    "nonVoidTags",
+]
+
+voidTags = [
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "param",
+    "source",
+    "track",
+    "wbr",
 ]
 
 tagsWithHref = [
@@ -143,3 +162,7 @@ all_tags = [
 	"video",
 	"wbr"
 ]
+nonVoidTags = []
+for t in all_tags:
+    if not t in voidTags:
+        nonVoidTags.append(t)

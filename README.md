@@ -1,4 +1,6 @@
 # htmltagparse
+![Pepy Total Downlods](https://img.shields.io/pepy/dt/htmltagparse)
+
 A tool designed to quickly parse html tags and elements.
 
 ## Prerequisites
@@ -6,6 +8,7 @@ A tool designed to quickly parse html tags and elements.
   - timeoutcall==1.*
   - beautifulsoup4==4.*
   - html5lib==1.*
+  - requests==2.*
 
 ## Usage
 ### Reading Page Titles
@@ -30,12 +33,12 @@ print(brave.searchTag("footer", htmlFormat=False)[0]) #output: © Brave Software
 
 #### Building Pages via HTML
 ```python
-from htmltagparse import NewPage
+from htmltagparse import HtmlPage
 from requests import get
 
 htmlContent = get("https://duckduckgo.com/").text
-ddg = NewPage(htmlContent)
-print(list(ddg.sources)) #output: script
+ddg = HtmlPage(htmlContent)
+print(list(ddg.sources)) #output: ['script']
 ```
 
 #### Searching A Page
@@ -58,13 +61,28 @@ except:
 print(videoTags)
 ```
 
+Another way you could get tags from a Youtube video:
+```python
+import htmltagparse
+
+#youtube video id
+videoId = ""
+video = htmltagparse.build.fromUri("https://www.youtube.com/watch?v=%s" % videoId)
+
+for i in video.metadata:
+  if i.get("name") == "keywords":
+    tags = i.get("content").split(", ")
+    break
+print(i)
+```
+
 ## Developers
-### Building To Wheel File
+### Building to Wheel File
 - cd into root directory of this repository
 - run `python3 -m build`
 
 > [!NOTE]
-> Errors building this package may be due to external package requirements, if this occurs, use `python3 -m build -n` instead.
+> Errors building this package may be due to this packages requirements, if this occurs, use `python3 -m build -n` instead.
 
 ### Contributions
 Must not include:

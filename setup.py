@@ -1,9 +1,8 @@
 import setuptools
 import htmltagparse
 
-def readme():
-    with open("README.md", 'r') as f:
-        return f.read()
+with open("README.md", "r") as f:
+    readme = f.read()
 
 with open("requirements.txt", 'r') as f:
     requirements = f.read().split('\n')
@@ -15,7 +14,7 @@ setuptools.setup(
     maintainer=htmltagparse.__author__,
     description=htmltagparse.__description__,
     url="https://github.com/xyzpw/htmltagparse/",
-    long_description=readme(),
+    long_description=readme,
     long_description_content_type="text/markdown",
     license=htmltagparse.__license__,
     python_requires=">=3.10",

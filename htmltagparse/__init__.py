@@ -1,12 +1,11 @@
-"""
-A tool designed to quickly parse html tags and elements.
-"""
+"""A tool designed to quickly parse html tags and elements."""
+
 from . import parser
 import requests
-from .parser import NewPage, html2txt
+from .parser import *
 from . import build
 
-__version__ = "1.0"
+__version__ = "2.0-rc1"
 __author__ = "xyzpw"
 __description__ = "A tool designed to quickly parse html tags and elements."
 __license__ = "MIT"
@@ -14,8 +13,11 @@ __license__ = "MIT"
 __all__ = [
     "titleFromHtml",
     "titleFromUri",
-    "NewPage",
+    "HtmlPage",
     "build",
+    "getElementAttributeValue",
+    "getElementAttributes",
+    "getTagContents",
 ]
 
 def titleFromHtml(htmlContent: str) -> str:
