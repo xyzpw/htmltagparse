@@ -5,7 +5,7 @@ import requests
 from .parser import *
 from . import build
 
-__version__ = "2.0-rc1"
+__version__ = "2.0"
 __author__ = "xyzpw"
 __description__ = "A tool designed to quickly parse html tags and elements."
 __license__ = "MIT"
