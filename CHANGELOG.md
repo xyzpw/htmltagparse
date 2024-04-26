@@ -1,6 +1,6 @@
 # Changelog
 
-# v3 (???)
+# v3 (2024-04-26)
 - major changes:
   - renamed `searchTag` to `findall`
   - renamed `getTagContents` to `getInnerHtml`
