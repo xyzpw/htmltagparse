@@ -1,23 +1,26 @@
 # htmltagparse
 ![Pepy Total Downlods](https://img.shields.io/pepy/dt/htmltagparse)
 
-A tool designed to quickly parse html tags and elements.
+A tool designed to quickly parse HTML tags and elements.
 
 ## Prerequisites
 - Pip packages:
-  - timeoutcall==1.*
   - beautifulsoup4==4.*
   - html5lib==1.*
   - requests==2.*
 
+- Optional packages:
+  - timeoutcall==1.*
+
 ## Usage
 ### Reading Page Titles
-Firstly, if you would like to view a page title alone, you could use the `titleFromUri` function:
+Firstly, if you would like to view page info alone, you could use a few functions for this:
 ```python
-from htmltagparse import titleFromUri
+import htmltagparse
+title = htmltagparse.titleFromUri("https://github.com/")
+print(title) # ouput: GitHub: Let’s build from here · GitHub
 
-websiteTitle = titleFromUri("https://github.com/")
-print(websiteTitle) # output: GitHub: Let’s build from here · GitHub
+metadata = htmltagparse.metadataFromUri("https://github.com/") # meta tags from github
 ```
 
 ### Building Pages
@@ -25,11 +28,13 @@ print(websiteTitle) # output: GitHub: Let’s build from here · GitHub
 ```python
 from htmltagparse import build
 
-brave = build.fromUri("https://search.brave.com/", timeout=20)
+brave = build.fromUri("https://search.brave.com/")
+print(brave.response) #output: (200, 'OK')
 print(brave.tags) #list of tags found on the specified page
-print(brave.searchTag("footer")) #displays a list of innerHtml content to the footer tags
-print(brave.searchTag("footer", htmlFormat=False)[0]) #output: © Brave Software Brave Search API Summarizer Helpful answers Report a security issue
+print(brave.elapsed) #the time taken to create the html page class
+print(brave.title) #title of the html page
 ```
+This is not limited to these values alone; there are more values associated with an html page.
 
 #### Building Pages via HTML
 ```python
@@ -61,19 +66,15 @@ except:
 print(videoTags)
 ```
 
-Another way you could get tags from a Youtube video:
+Another way you could get tags from a Youtube video is with the `find` function, example:
 ```python
 import htmltagparse
 
-#youtube video id
-videoId = ""
-video = htmltagparse.build.fromUri("https://www.youtube.com/watch?v=%s" % videoId)
-
-for i in video.metadata:
-  if i.get("name") == "keywords":
-    tags = i.get("content").split(", ")
-    break
-print(i)
+videoId = "" #video id here
+yt = htmltagparse.build.fromUri("https://www.youtube.com/watch?v=%s" % videoId)
+elTagOpening = yt.find("meta", attrs={"name": "keywords"})[0]
+videoKeywords = htmltagparse.getElementAttributeValue(elTagOpening, "content").split(", ")
+print(videoKeywords) # tags of the youtube video
 ```
 
 ## Developers

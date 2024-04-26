@@ -7,11 +7,11 @@ __all__ = [
 ]
 
 class HtmlHttpError(Exception):
-    """Exception for htmltagparse."""
+    """HTTPS error associated with htmltagparse."""
     def __init__(self, *args):
         pass
 
 class HtmlTagError(Exception):
-    """Timeout expired."""
+    """Error parsing tags."""
     def __init__(self, *args):
         pass

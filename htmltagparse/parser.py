@@ -1,8 +1,13 @@
 import re
-import htmltagparse
 from .html_tags import *
-from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
-import timeoutcall
+from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning, XMLParsedAsHTMLWarning
+try:
+    import timeoutcall
+    # htmltagparse.parser.hasTimeoutcall can be set to False to avoid using it
+    if tuple(timeoutcall.__version__.split("."))[0] == "1":
+        hasTimeoutcall = True
+except:
+    hasTimeoutcall = False
 from .exceptions import *
 import re
 import warnings
@@ -12,106 +17,143 @@ __all__ = [
     "html2txt",
     "getElementAttributes",
     "getElementAttributeValue",
-    "getTagContents",
+    "getInnerHtml",
 ]
 
 warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
-def searchForGroup(pattern: str, text: str, group: str) -> str:
+def searchForGroup(pattern: str, text: str, group: str, case_sensitive=True) -> str:
     try:
-        return re.search(pattern, text, flags=(re.MULTILINE | re.DOTALL)).group(group)
+        flags = re.MULTILINE | re.DOTALL if case_sensitive else re.MULTILINE | re.DOTALL | re.IGNORECASE
+        return re.search(pattern, text, flags=flags).group(group)
     except:
         return
 
-# large pages may hang script
 def findTags(htmlContent: str) -> list:
     foundTags = []
-    for tag in voidTags:
-        tagSearch = re.search(rf"<{tag}\s?(?:.*?)?/?>", htmlContent, re.MULTILINE | re.DOTALL)
-        if bool(tagSearch):
-            foundTags.append(tag)
-    for tag in nonVoidTags:
-        tagSearch = re.search(rf"<{tag}\s?(?:.*?)>(?:.*?)</{tag}>", htmlContent, re.MULTILINE | re.DOTALL)
-        if bool(tagSearch):
+    for tag in all_tags:
+        tagSearch = re.search(rf"<\s*{tag}.*?>", htmlContent, re.MULTILINE | re.DOTALL)
+        if not tag in voidTags and tagSearch != None:
+            tagSearchMatch = tagSearch.group(0)
+            tagSearchSpan = tagSearch.span()
+            strippedHtmlContent = htmlContent[tagSearchSpan[0]:]
+            tagContentSearch = re.search(rf"{re.escape(tagSearchMatch)}.*?<\s*/\s*{tag}\s*>",
+                strippedHtmlContent,
+                flags=(re.MULTILINE | re.DOTALL),
+            )
+            if tagContentSearch != None:
+                foundTags.append(tag)
+        elif tag in voidTags and tagSearch != None:
             foundTags.append(tag)
     return foundTags
 
-# large pages may hang script
 def findSources(htmlContent: str) -> list:
     foundSources = {}
-    for tag in all_tags:
-        allSourcesFound = re.findall(rf"<{tag} (?:[^>]*?)src=(?:\"|')(?P<src>.*?)(?:\"|')/?>", htmlContent, re.MULTILINE | re.DOTALL)
-        if bool(allSourcesFound):
-            foundSources[tag] = allSourcesFound
+    for tag in tagsWithSrc:
+        srcIter = re.finditer(
+            rf"<\s*{tag}[^>]*?src\s*=\s*(\"|\')(?P<src>.*?)(?:\1).*?>",
+            htmlContent,
+            flags=(re.MULTILINE | re.DOTALL),
+        )
+        sources = []
+        for src in srcIter:
+            currentSrc = src.group("src")
+            if currentSrc != None:
+                sources.append(currentSrc)
+        if sources != []:
+            foundSources[tag] = sources
     return foundSources
 
 def findHrefs(htmlContent: str) -> list:
     foundHrefs = {}
     for tag in tagsWithHref:
-        if tag in voidTags:
-            tagInfo = re.findall(rf"<{tag} (?:[^>]*?)href=(?:\"|')(?P<href>.*?)(?:\"|')(?:.*?)/?>", htmlContent, re.MULTILINE | re.DOTALL)
-        elif tag in nonVoidTags:
-            tagInfo = re.findall(rf"<{tag} (?:[^>]*?)href=(?:\"|')(?P<href>.*?)(?:\"|')(?:.*?)>(?:.*?)</{tag}>", htmlContent, re.MULTILINE | re.DOTALL)
-        if tagInfo != []:
-            foundHrefs[tag] = tagInfo
+        hrefIter = re.finditer(
+            rf"<\s*{tag}[^>]*?href\s*=\s*(\"|\')(?P<href>.*?)(?:\1).*?>",
+            htmlContent,
+            flags=(re.MULTILINE | re.DOTALL),
+        )
+        hrefs = []
+        for href in hrefIter:
+            currentHref = href.group("href")
+            if currentHref != None:
+                hrefs.append(currentHref)
+        if hrefs != []:
+            foundHrefs[tag] = hrefs
     return foundHrefs
 
 def findIds(htmlContent: str) -> list:
     foundIds = []
-    for tag in voidTags:
-        tagIds = re.findall(rf"<{tag} (?:[^>]*?)id=(?:\"|')(?P<id>.*?)(?:\"|')(?:.*?)/?>", htmlContent, re.MULTILINE | re.DOTALL)
-        for i in tagIds:
-            foundIds.append(i)
-    for tag in nonVoidTags:
-        tagIds = re.findall(rf"<{tag} (?:[^>]*?)id=(?:\"|')(?P<id>.*?)(?:\"|')(?:.*?)>(?:.*?)</{tag}>", htmlContent, re.MULTILINE | re.DOTALL)
-        for i in tagIds:
-            foundIds.append(i)
-    return foundIds
+    for tag in all_tags:
+        idIter = re.finditer(
+            rf"<\s*{tag}[^>]*?id\s*=\s*(\"|\')(?P<id>.*?)(?:\1).*?>",
+            htmlContent,
+            flags=(re.MULTILINE | re.DOTALL),
+        )
+        for i in idIter:
+            currentId = i.group("id")
+            if currentId != None:
+                foundIds.append(currentId)
+    return list(set(foundIds))
 
-def getElementAttributeValue(elementOuterHtml: str, attrName: str) -> str:
-    """Returns the value of an html attribute value
+def getElementAttributeValue(elementOpeningTag: str, attrName: str) -> str:
+    """Returns the value of an HTML attribute value.
 
-    :param elementOuterHtml: the outerHtml text to be searched
-    :param attrName:         the attribute value of which contains the value to be returned"""
-    elementOuterHtml = elementOuterHtml[elementOuterHtml.index("<"):]
-    tagName = searchForGroup(r"^<(?P<tag>\w+)", elementOuterHtml, "tag")
-    attrValue = searchForGroup(rf"<{tagName} (?:[^>]*?){attrName}=(?:\"|')(?P<value>.*?)(?:\"|')(?:.*?)/?>", elementOuterHtml, "value")
+    :param elementOpeningTag: the element opening tag which contains the attribute to be searched
+    :param attrName:          the attribute name which contains the value to be returned"""
+    elementOpeningTag = elementOpeningTag[elementOpeningTag.index("<"):]
+    tagName = searchForGroup(r"<\s*(?P<tag>[\w\-]{1,})", elementOpeningTag, "tag")
+    attrValue = searchForGroup(
+        rf"<\s*{tagName} (?:[^>]*?){attrName}\s*=\s*(\"|\')(?P<value>.*?)(?:\1).*?>",
+        elementOpeningTag,
+        "value"
+    )
     return attrValue
 
-def getElementAttributes(elementOuterHtml: str) -> dict[str, str]:
+def getElementAttributes(elementOpeningTag: str) -> dict[str, str]:
     """Returns a dictionary of attributes associated with an HTML element.
 
-    :param elementOuterHtml: the outerHtml text to be searched"""
-    elementOuterHtml = elementOuterHtml[elementOuterHtml.index("<"):]
-    tagName = searchForGroup(r"^<(?P<tag>\w+)", elementOuterHtml, "tag")
-    tagOpening = searchForGroup(rf"<{tagName} (?P<opening>.*?)>", elementOuterHtml, "opening")
-    attributeList = re.findall(r"(?P<attr>\w+)=(?:\"|')(?P<value>.*?)(?:\"|')", tagOpening)
+    :param elementOpeningTag: the element opening tag of which contains attributes to be returned"""
+    elementOpeningTag = elementOpeningTag[elementOpeningTag.index("<"):]
+    tagName = searchForGroup(r"^<\s*(?P<tag>[\w\-]{1,})", elementOpeningTag, "tag")
+    tagOpening = searchForGroup(rf"<\s*{tagName} (?P<opening>.*?)\s*/?\s*>", elementOpeningTag, "opening")
+    if tagOpening == None:
+        return
+    attributeIter = re.finditer(r"(?P<attr>[\w\-]{1,})\s*=\s*(\"|\')(?P<value>.*?)(?:\2)", tagOpening)
     attributes = {}
-    for attr in attributeList:
-        attributes[attr[0]] = attr[1]
+    for attrIter in attributeIter:
+        attributes[attrIter.group("attr")] = attrIter.group("value")
     return attributes
 
-def getTagContents(elementOuterHtml: str) -> str:
-    """Returns the contents of an HTML element.
+def getInnerHtml(outerHtml: str) -> str:
+    """Returns the inner HTML of an element via outer HTML.
 
-    :param elementOuterHtml: the outer html of the element which contains the contents to be returned"""
-    elementOuterHtml = elementOuterHtml[elementOuterHtml.index("<"):]
-    tagName = searchForGroup(r"^<(?P<tag>\w+)", elementOuterHtml, "tag")
-    tagContents = searchForGroup(rf"<{tagName}\s?(?:.*?)?>(?P<content>.*?)</{tagName}>", elementOuterHtml, "content")
-    return tagContents
+    :param outerHtml: the outer html contents which contain the inner html to be returned"""
+    outerHtml = outerHtml[outerHtml.index("<"):]
+    tagName = searchForGroup(r"<\s*(?P<tag>\w{1,})", outerHtml, "tag")
+    innerHtml = searchForGroup(
+        rf"<\s*{tagName}.*?>(?P<content>.*?)<\s*/\s*{tagName}\s*>",
+        outerHtml,
+        "content"
+    )
+    return innerHtml
 
 def getHtmlMetadata(htmlContent: str) -> list[dict]:
     metadataContents = []
-    metaTags = re.findall(r"<meta (?:.*?)/?>", htmlContent, re.MULTILINE | re.DOTALL)
+    metaTags = re.findall(r"<\s*meta (?:.*?)>", htmlContent, re.MULTILINE | re.DOTALL)
     for i in range(len(metaTags)):
-        metaTags[i] = re.sub(r"<meta (?P<cont>.*?)/?>", r"\g<cont>", metaTags[i])
+        metaTags[i] = re.sub(r"<\s*meta (?P<cont>.*?)\s*/?\s*>", r"\g<cont>", metaTags[i])
     for tag in metaTags:
-        workingMetadata = re.findall(r"(?P<attr>\w+)=(?:\"|')(?P<value>.*?)(?:\"|')", tag)
         workingMetadataDict = {}
-        for meta in workingMetadata:
-            workingMetadataDict[meta[0]] = meta[1]
+        workingMetadataIter = re.finditer(r"(?P<attr>[\w\-]{1,})\s*=\s*(\"|\')(?P<value>.*?)(?:\2)", tag)
+        for currIter in workingMetadataIter:
+            workingMetadataDict[currIter.group("attr")] = currIter.group("value")
         metadataContents.append(workingMetadataDict)
     return metadataContents
+
+def titleFromHtml(htmlContent: str) -> str:
+    pageTitle = searchForGroup(r"<\s*title\s*>(?P<title>.*?)<\s*/\s*title\s*>", htmlContent, "title")
+    return html2txt(pageTitle)
 
 def html2txt(htmlContent: str):
     """Parses HTML data into plain text."""
@@ -124,43 +166,47 @@ class HtmlPage:
         self.text = html2txt(htmlContent)
         self.uri = None
         self.response = None
-        self.title = htmltagparse.titleFromHtml(htmlContent)
+        self.title = titleFromHtml(self.html)
         self.sources = findSources(htmlContent)
         self.hrefs = findHrefs(htmlContent)
         self.ids = findIds(htmlContent)
-        self.lang = searchForGroup(r"<html (?:.*?)lang=(?:\"|')(?P<lang>.*?)(?:\"|')(?:.*?)>", self.html, "lang")
-        self.encoding = searchForGroup(r"<meta (?:.*?)charset=(?:\"|')(?P<encoding>.*?)(?:\"|')(?:.*?)/?>", self.html, "encoding")
+        self.lang = searchForGroup(r"<\s*html.*?lang\s*=\s*(\"|\')(?P<lang>.*?)(?:\1).*?>", self.html, "lang", False)
+        self.encoding = searchForGroup(r"<\s*meta.*?charset\s*=\s*(\"|\')(?P<encoding>.*?)(?:\1).*?>", self.html, "encoding", False)
         self.metadata = getHtmlMetadata(self.html)
-        try:
-            self.tags = timeoutcall.call(findTags, timeout, "could not fetch tags within timeout duration", htmlContent)
-        except TimeoutError as ERROR:
-            self.tags = HtmlTagError(str(ERROR))
+        if hasTimeoutcall:
+            try:
+                self.tags = timeoutcall.call(findTags, timeout, "could not fetch tags within timeout duration", htmlContent)
+            except TimeoutError as ERROR:
+                self.tags = HtmlTagError(str(ERROR))
+        else:
+            self.tags = findTags(self.html)
     def __str__(self):
         return self.uri
     def __repr__(self):
         return repr(list(vars(self)))
-    def searchTagExists(self, tagName: str) -> bool:
-        """Checks if the specified tag appears within the page html.
-
-        :param tagName: name of tag to be validated"""
-        if not tagName in all_tags:
-            return False
-        return bool(re.search(rf"<{tagName}\s?(?:.*?)/?>", self.html, re.MULTILINE | re.DOTALL))
-    def searchTag(self, tagName: str, htmlFormat=True) -> list:
+    def findall(self, tagName: str) -> list:
         """Returns a list of HTML tag occurrences.
 
-        :param tag:        the tag name to be searched
-        :param htmlFormat: determines whether the target text will be html or text format"""
+        :param tag: the tag name to be searched"""
         contents = []
         if tagName in voidTags:
-            for t in re.findall(rf'<{tagName}\s?(?:.*?)/?>', self.html, flags=(re.M|re.S)):
-                contents.append(t)
+            tagsFound = re.findall(rf"<\s*{tagName}.*?>", self.html, flags=(re.MULTILINE | re.DOTALL))
+            for tag in tagsFound:
+                contents.append(tag)
         else:
-            for t in re.findall(rf'<{tagName}\s?(?:.*?)?>(?:.*?)</{tagName}>', self.html, flags=(re.M|re.S)):
-                contents.append(t)
-        if not htmlFormat:
-            for i in range(len(contents)):
-                contents[i] = html2txt(str(contents[i]))
+            tagIterSearch = re.finditer(rf"<\s*{re.escape(tagName)}.*?>", self.html, re.MULTILINE | re.DOTALL)
+            tagIters = [i for i in tagIterSearch]
+            del tagIterSearch
+            for i in tagIters:
+                tagAppearancePos = i.span()[0]
+                workingHtmlContent = self.html[tagAppearancePos:]
+                tagSearch = re.search(
+                    rf"{re.escape(i.group(0))}(?:.*?)<\s*/\s*{tagName}\s*>",
+                    workingHtmlContent,
+                    flags=(re.MULTILINE | re.DOTALL),
+                )
+                if bool(tagSearch):
+                    contents.append(tagSearch.group(0))
         return contents
     def regex(self, pattern: str, findall=False, htmlFormat=True):
         """Search page content with a regex pattern.
@@ -173,11 +219,47 @@ class HtmlPage:
         compiledPattern = re.compile(pattern, flags=(re.MULTILINE | re.DOTALL))
         regexMatch = compiledPattern.search(targetText) if not findall else compiledPattern.findall(targetText)
         return regexMatch
-    def getIdContents(self, elementId: str) -> str:
+    def getIdContents(self, elementId: str, htmlFormat=True) -> str:
         """Returns the innerHtml contents of an element with a specified ID.
 
-        :param elementId: the id of which is assigned to the element that contains the contents to be returned"""
+        :param elementId:  the id of which is assigned to the element that contains the contents to be returned
+        :param htmlFormat: determines whether the contents will be returned in html or text format"""
         for tag in nonVoidTags:
-            idContent = searchForGroup(rf"<(?:{tag}) (?:.*?)id=(?:\"|')(?:{elementId})(?:\"|')(?:.*?)>(?P<content>.*?)</{tag}>", self.html, "content")
+            idContent = searchForGroup(
+                rf"<\s*{tag}.*?id\s*=\s*(\"|\')(?:{elementId})(?:\1).*?>(?P<content>.*?)<\s*/\s*{tag}\s*>",
+                self.html,
+                "content",
+            )
             if idContent != None:
+                if not htmlFormat:
+                    idContent = html2txt(idContent)
                 return idContent
+    def find(self, tagName: str, attrs: dict) -> list[dict]:
+        """Searches for an element with specified attributes.
+
+        :param tagName: tag name of element that needs to be searched
+        :param attrs:   attributes and their values within the opening element"""
+        if len(list(attrs)) < 1:
+            raise HtmlTagError("this function requires at least one attribute value")
+        elements = self.findall(tagName)
+        matchedElements = []
+        for el in elements:
+            isInvalid = False
+            attributesWithinElement = getElementAttributes(el)
+            if attributesWithinElement == None:
+                continue
+            for attribute in attrs:
+                if attribute not in list(attributesWithinElement):
+                    isInvalid = True
+                    break
+            if isInvalid:
+                continue
+            for elementAttr, elementAttrValue in attributesWithinElement.items():
+                if elementAttr in list(attrs):
+                    if attrs.get(elementAttr) != elementAttrValue:
+                        isInvalid = True
+                        continue
+            if not isInvalid:
+                matchedElements.append(el)
+        if matchedElements != []:
+            return matchedElements

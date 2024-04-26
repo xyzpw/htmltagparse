@@ -1,28 +1,45 @@
 """A tool designed to quickly parse html tags and elements."""
 
-from . import parser
 import requests
+import requests.utils
 from .parser import *
-from . import build
+from .build import *
+from .cleaner import *
+from urllib.parse import quote as encodeURI
+from urllib.parse import unquote as decodeURI
 
-__version__ = "2.0"
+__version__ = "3.0"
 __author__ = "xyzpw"
 __description__ = "A tool designed to quickly parse html tags and elements."
 __license__ = "MIT"
 
 __all__ = [
-    "titleFromHtml",
     "titleFromUri",
     "HtmlPage",
     "build",
     "getElementAttributeValue",
     "getElementAttributes",
-    "getTagContents",
+    "getInnerHtml",
+    "fixSpacing",
+    "fixElementSpacing",
 ]
 
-def titleFromHtml(htmlContent: str) -> str:
-    htmlTitle = parser.searchForGroup(r"<title>(?P<title>.*?)</title>", htmlContent, "title")
-    return html2txt(htmlTitle)
+def titleFromUri(url: str, **kwargs) -> str:
+    """Retrieves the title of an HTML page linked to a specified URL.
 
-def titleFromUri(url: str) -> str:
-    return titleFromHtml(requests.get(url).text)
+    :param url: the url which points to the html page to be searched
+
+    :kwargs: additional arguments will be passed to the `get` function of the requests module"""
+    pageHtml = requests.get(url, **kwargs).text
+    pageTitle = parser.titleFromHtml(pageHtml)
+    return pageTitle
+
+def metadataFromUri(url: str, **kwargs) -> list[dict]:
+    """Returns metadata of an HTML page linked to a specified URL.
+
+    :param url: url to the page that contains the metadata to be returned
+
+    :kwargs: additional arguments will be passed to the `get` function of the requests module"""
+    urlContent = requests.get(url, **kwargs).text
+    metadata = parser.getHtmlMetadata(urlContent)
+    return metadata
