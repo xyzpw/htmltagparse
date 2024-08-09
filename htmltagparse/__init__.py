@@ -8,7 +8,7 @@ from .cleaner import *
 from urllib.parse import quote as encodeURI
 from urllib.parse import unquote as decodeURI
 
-__version__ = "3.0"
+__version__ = "3.1"
 __author__ = "xyzpw"
 __description__ = "A tool designed to quickly parse html tags and elements."
 __license__ = "MIT"

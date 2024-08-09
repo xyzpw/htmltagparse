@@ -1,6 +1,9 @@
 # Changelog
 
-# v3 (2024-04-26)
+## v3.1 (2024-08-09)
+- added kwargs to `fromUri` function
+
+## v3 (2024-04-26)
 - major changes:
   - renamed `searchTag` to `findall`
   - renamed `getTagContents` to `getInnerHtml`

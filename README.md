@@ -18,7 +18,7 @@ Firstly, if you would like to view page info alone, you could use a few function
 ```python
 import htmltagparse
 title = htmltagparse.titleFromUri("https://github.com/")
-print(title) # ouput: GitHub: Let’s build from here · GitHub
+print(title) # output: GitHub: Let’s build from here · GitHub
 
 metadata = htmltagparse.metadataFromUri("https://github.com/") # meta tags from github
 ```

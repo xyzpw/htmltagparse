@@ -7,11 +7,11 @@ __all__ = [
     "fromUri",
 ]
 
-def fromUri(uri: str, timeout=5, headers={}) -> object:
+def fromUri(uri: str, timeout=5, **kwargs) -> object:
     """Builds an html page from a URI."""
     priorEpoch = time.time()
     try:
-        resp = requests.get(uri, timeout=timeout, headers=headers)
+        resp = requests.get(uri, timeout=timeout, **kwargs)
     except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout):
         raise HtmlHttpError("did not receive server data within timeout duration")
     tagTimeout = timeout - (time.time() - priorEpoch)
